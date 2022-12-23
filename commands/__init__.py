@@ -1,0 +1,2 @@
+from commands.clients_commands import set_client_commands
+from commands.admin_commands import set_admin_commands

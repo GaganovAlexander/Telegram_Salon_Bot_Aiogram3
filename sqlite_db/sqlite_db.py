@@ -26,7 +26,7 @@ async def sql_delete_command(name: str):
     cur.execute(f"DELETE FROM pricelist WHERE name = '{name}'")
     base.commit()
 
-async def sql_update_command(name: str, item: str, new_value: str):
+async def sql_change_command(name: str, item: str, new_value: str):
     cur.execute(f"UPDATE pricelist SET {item} = '{new_value}' where name = '{name}'")
     base.commit()
 
