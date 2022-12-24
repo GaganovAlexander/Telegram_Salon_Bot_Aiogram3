@@ -9,12 +9,8 @@ admin_commands = [
             description='Добавить пункт в прайс-лист'
         ),
         BotCommand(
-            command='change',
-            description='Изменить пункт прайс-листа'
-        ),
-        BotCommand(
-            command='delete',
-            description='Удалить пункт прайс-листа'
+            command='check_pricelist',
+            description='Вывести прайс-лист с функциями администратора'
         ),
         BotCommand(
             command='cancel',

@@ -36,4 +36,5 @@ async def add_admin(id: str):
 
 async def get_admins_id():
     cur.execute("SELECT id FROM admins_id")
-    return cur.fetchall()
+    data = cur.fetchall()
+    return data if data else [[]]

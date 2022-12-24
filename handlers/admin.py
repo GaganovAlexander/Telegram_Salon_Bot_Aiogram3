@@ -1,6 +1,6 @@
 from os import getenv
 
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram import Dispatcher, F
@@ -10,6 +10,7 @@ from create_bot import bot
 from sqlite_db import get_admins_id, add_admin, sql_add_command, sql_change_command, sql_delete_command, sql_pricelist_command
 from commands import set_admin_commands
 from handlers.client import pricelist_command
+from keys import items_inlines
 
 
 class FSM_Admin(StatesGroup):
@@ -20,11 +21,8 @@ class FSM_Admin(StatesGroup):
     add_description = State()
     add_price = State()
 
-    delete_name = State()
-
-    change_choice = State()
-    change_select_item = State()
-    change_new_value = State()
+    change_complite_text = State()
+    change_complite_photo = State()
 
 
 
@@ -44,6 +42,38 @@ async def password_handler(message: Message, state: FSMContext):
     else:
         await message.reply('Ошибка или неверно введённый пароль')
     await state.clear()
+
+
+async def admin_inlines(call: CallbackQuery, state: FSMContext):
+    if 'delete' in call.data:
+        await sql_delete_command(call.data[7:])
+        await call.message.answer('Готово')
+    if 'cnahge' in call.data:
+        if 'photo' in call.data:
+            await state.set_state(FSM_Admin.change_complite_photo)
+            await state.update_data(name=call.data[13:])
+            await call.message.answer('Отправьте новое фото')
+        if 'name' in call.data:
+            await state.set_state(FSM_Admin.change_complite_text)
+            await state.update_data(name=call.data[12:], item='name')
+            await call.message.answer('Введите новое название')
+        if 'description' in call.data:
+            await state.set_state(FSM_Admin.change_complite_text)
+            await state.update_data(name=call.data[19:], item='description')
+            await call.message.answer('Введите новое описание')
+        if 'price' in call.data:
+            await state.set_state(FSM_Admin.change_complite_text)
+            await state.update_data(name=call.data[13:], item='price')
+            await call.message.answer('Введите новую цену')
+    await call.answer()
+
+
+async def check_pricelist_command(message: Message):
+    if message.from_user.id in map(int, (await get_admins_id())[0]):
+        for i in await sql_pricelist_command():
+            await message.answer_photo(i[0], caption=f'Название: {i[1]}\nОписание: {i[2]}\nЦена: {i[3]}₽', reply_markup=items_inlines(i[1]))
+    else:
+        await message.reply('Вы не обладаете правами администратора')
 
 
 async def add_command(message: Message, state: FSMContext):
@@ -80,41 +110,15 @@ async def add_price(message: Message, state: FSMContext):
     await state.clear()
 
 
-async def delete_command(message: Message, state: FSMContext):
-    if message.from_user.id in map(int, (await get_admins_id())[0]):
-        await pricelist_command(message)
-        await message.reply('Введите название того, что хотите удалить')
-        await state.set_state(FSM_Admin.delete_name)
-    else:
-        await message.reply('Вы не обладаете правами администратора')
-
-async def delete_item(message: Message, state: FSMContext):
-    await sql_delete_command(message.text)
+async def change_complite_text(message: Message, state: FSMContext):
+    data = await state.get_data()
+    await sql_change_command(data['name'], data['item'], message.text)
     await message.reply('Готово')
     await state.clear()
 
-
-async def change_command(message: Message, state: FSMContext):
-    if message.from_user.id in map(int, (await get_admins_id())[0]):
-        await pricelist_command(message)
-        await message.reply('Введите название того, что хотите изменить')
-        await state.set_state(FSM_Admin.change_choice)
-    else:
-        await message.reply('Вы не обладаете правами администратора')
-
-async def change_choice(message: Message, state: FSMContext):
-    await state.update_data(name=message.text)
-    await message.reply('Введите название поля, которое хотите изменить(photo, name, description или price)')
-    await state.set_state(FSM_Admin.change_select_item)
-
-async def change_select_item(message: Message, state: FSMContext):
-    await state.update_data(item=message.text)
-    await message.reply('Введите новое значение')
-    await state.set_state(FSM_Admin.change_new_value)
-
-async def change_new_value(message: Message, state: FSMContext):
+async def change_complite_photo(message: Message, state: FSMContext):
     data = await state.get_data()
-    await sql_change_command(data['name'], data['item'], message.text)
+    await sql_change_command(data['name'], 'img_id', photo=message.photo[0].file_id)
     await message.reply('Готово')
     await state.clear()
 
@@ -131,16 +135,14 @@ def register_handlers_admin(dp: Dispatcher):
     dp.message.register(admin_command, Command(commands='admin'))
     dp.message.register(password_handler, FSM_Admin.password_check)
 
+    dp.callback_query.register(admin_inlines)
+    dp.message.register(check_pricelist_command, Command(commands='check_pricelist'))
+
     dp.message.register(add_command, Command(commands='add'))
     dp.message.register(add_photo, FSM_Admin.add_photo, F.photo)
     dp.message.register(add_name, FSM_Admin.add_name)
     dp.message.register(add_description, FSM_Admin.add_description)
     dp.message.register(add_price, FSM_Admin.add_price)
 
-    dp.message.register(delete_command, Command(commands='delete'))
-    dp.message.register(delete_item, FSM_Admin.delete_name)
-
-    dp.message.register(change_command, Command(commands='change'))
-    dp.message.register(change_choice, FSM_Admin.change_choice)
-    dp.message.register(change_select_item, FSM_Admin.change_select_item)
-    dp.message.register(change_new_value, FSM_Admin.change_new_value)
+    dp.message.register(change_complite_text, FSM_Admin.change_complite_text)
+    dp.message.register(change_complite_photo, FSM_Admin.change_complite_photo, F.photo)

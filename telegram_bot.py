@@ -11,7 +11,7 @@ async def start():
     print('Бот запущен')
     sql_start()
     await set_client_commands(bot)
-
+    await bot.delete_webhook(drop_pending_updates=True)
     
 async def main():
     dp.startup.register(start)

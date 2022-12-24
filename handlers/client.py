@@ -18,7 +18,7 @@ async def address_command(message: Message):
 
 async def pricelist_command(message: Message):
     for i in await sql_pricelist_command():
-        await message.answer_photo(i[0], caption=f'Имя: {i[1]}\nОписание: {i[2]}\nЦена: {i[3]}₽')
+        await message.answer_photo(i[0], caption=f'Название: {i[1]}\nОписание: {i[2]}\nЦена: {i[3]}₽')
 
 async def get_contacts_command(message: Message):
     await message.answer(getenv('CONTACTS'))
