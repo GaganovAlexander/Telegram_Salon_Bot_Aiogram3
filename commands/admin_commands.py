@@ -3,6 +3,7 @@ from aiogram.types import BotCommand, BotCommandScopeDefault
 
 from commands.clients_commands import client_commands
 
+# List of all admins commands
 admin_commands = [
         BotCommand(
             command='add',
@@ -19,4 +20,5 @@ admin_commands = [
     ]
 
 async def set_admin_commands(bot: Bot):
+    """Sets up admins commands list"""
     await bot.set_my_commands(admin_commands+client_commands, BotCommandScopeDefault())
