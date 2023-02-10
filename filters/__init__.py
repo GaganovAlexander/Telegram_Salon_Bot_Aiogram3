@@ -1,1 +1,1 @@
-from filters.admin_filter import AdminFilter, ClientInline
+from filters.filters import AdminFilter, ClientInline

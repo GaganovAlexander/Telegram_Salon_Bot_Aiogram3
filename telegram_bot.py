@@ -1,4 +1,4 @@
-import asyncio
+from asyncio import run as arun
 
 from create_bot import bot, dp
 from handlers import register_handlers_client, register_handlers_admin
@@ -24,4 +24,4 @@ async def main():
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    arun(main())

@@ -9,21 +9,9 @@ client_commands = [
             description='Начало работы'
         ),
         BotCommand(
-            command='help',
-            description='Вывести список всех комманд'
-        ),
-        BotCommand(
             command='pricelist',
             description='Вывести прайс-лист'
         ),
-        BotCommand(
-            command='address',
-            description='Узнать адрес'
-        ),
-        BotCommand(
-            command='get_contacts',
-            description='Узнать контакты для связи'
-        )
     ]
 
 async def set_client_commands(bot: Bot):

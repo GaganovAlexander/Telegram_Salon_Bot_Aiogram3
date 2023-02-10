@@ -41,11 +41,38 @@ def admin_photo_inlines(num: int, name: str, mode: str = 'mainphoto'):
     if mode == 'mainphoto':
         kb.button(text="Загрузить новое главное фото", callback_data=f'new_{name}')
         adjust.append(1)
+        
     kb.adjust(*adjust)
     return kb.as_markup()
 
+def client_pricelist_inlines(list_of_items_names: list[str], last_item_num=0, first_page=False, last_page=False):
+    kb = InlineKeyboardBuilder()
+
+    adjusts = []
+    index = 0
+    for name in list_of_items_names:
+        if index == 2:
+            index = 0
+            adjusts.append(2)
+        kb.button(text=f'{name}', callback_data=f"pricelist_choice_{name}")
+        index += 1
+    if index:
+        adjusts.append(index)
+    if first_page:
+        kb.button(text='Вперёд', callback_data=f"pricelist_nextpage_{last_item_num}")
+        adjusts.append(1)
+    elif last_page:
+        kb.button(text='Назад', callback_data=f"pricelist_prevpage_{last_item_num}")
+        adjusts.append(1)
+    elif last_item_num > 6:
+        kb.button(text='Вперёд', callback_data=f"pricelist_nextpage_{last_item_num}")
+        kb.button(text='Назад', callback_data=f"pricelist_prevpage_{last_item_num}")
+        adjusts.append(2)
+    
+    kb.adjust(*adjusts)
+    return kb.as_markup()
+
 def client_items_inlines(name: str):
-    """Returns inline keyboard for client's /pricelist command"""
     kb = InlineKeyboardBuilder()
 
     kb.button(text='Больше фото', callback_data=f'photos_{name}')

@@ -1,14 +1,15 @@
-from os import getenv, mkdir, rename, remove
+from os import mkdir, rename, remove
+from shutil import rmtree
 
 from aiogram.types import Message, CallbackQuery, FSInputFile, InputMediaPhoto
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram import Dispatcher, F
 from aiogram.filters import Command
-from create_bot import bot
 
-from sqlite_db import get_admins_id, add_admin, sql_add_command, sql_change_command,\
-    sql_delete_command, sql_pricelist_command, increase_num, get_num
+from create_bot import bot
+from sqlite_db import sql_add_command, sql_change_command,\
+    sql_delete_command, sql_admin_pricelist_command, increase_num, get_num
 from keys import admin_items_inlines, admin_photo_inlines
 from commands import set_admin_commands
 from filters import AdminFilter
@@ -16,8 +17,6 @@ from filters import AdminFilter
 
 # Admin's states group
 class FSM_Admin(StatesGroup):
-    password_check = State()
-
     add_photo = State()
     add_name = State()
     add_description = State()
@@ -29,32 +28,22 @@ class FSM_Admin(StatesGroup):
     add_more_photos = State()
 
 
-async def admin_command(message: Message, state: FSMContext):
+async def admin_command(message: Message, state: FSMContext) -> None:
     """/admin command handler. If user already in admins list - do nothing, else answer him to enter password"""
-    if message.from_user.id not in map(int, (await get_admins_id())[0]):
-        await message.reply('Введите пороль админимстратора:')
-        await state.set_state(FSM_Admin.password_check)
-    else:
+    if await AdminFilter()(message):
         await set_admin_commands(bot)
-        await message.reply('Вы уже администратор')
-
-async def password_handler(message: Message, state: FSMContext):
-    """Admin password handler(after /admin command)"""
-    if message.text == getenv('PASSWORD'):
-        await add_admin(str(message.from_user.id))
-        await set_admin_commands(bot)
-        await message.reply('Успешно')      
+        await message.reply('Вы администратор')
     else:
-        await message.reply('Ошибка или неверно введённый пароль')
-    await state.clear()
+        await message.reply('Вы не администратор')
 
 
-async def admin_inlines(call: CallbackQuery, state: FSMContext):
+async def admin_inlines(call: CallbackQuery, state: FSMContext) -> None:
     """All admin's inlines handler"""
     data = call.data.split('_')
     match data[0]:
         case 'delete':
             await sql_delete_command(data[1])
+            rmtree(f"photos/{data[1]}")
             await call.message.answer('Готово')
         case 'change':
             match data[1]:
@@ -99,64 +88,63 @@ async def admin_inlines(call: CallbackQuery, state: FSMContext):
             await call.message.answer('Выберите фото из списка', reply_markup=admin_photo_inlines(num-1, data[1], 'choice'))
         case 'choice':
             remove(f"photos/{data[2]}/{data[1]}.jpg")
-            increase_num(data[2], -1)
+            await increase_num(data[2], -1)
             await call.message.answer('Готово')
             
     await call.answer()
 
 
 # Main admin's command - pricelist management
-async def check_pricelist_command(message: Message):
+async def check_pricelist_command(message: Message) -> None:
     """/check_pricelist command handler. Do the same as /pricelist command, but with admin's inline keys"""
-    for i in await sql_pricelist_command():
-        await message.answer_photo(FSInputFile(f'photos/{i[0]}/0.jpg'), caption=f'Название: {i[0]}\nОписание: {i[1]}\nЦена: {i[2]}₽',\
+    for i in await sql_admin_pricelist_command():
+        await message.answer_photo(FSInputFile(f'photos/{i[0]}/0.jpg'), caption=f'Название: {i[0]}\nОписание: {i[1]}\nЦена: {i[2]}',\
                 reply_markup=admin_items_inlines(i[0]))
 
 
 # Add states block
-async def add_command(message: Message, state: FSMContext):
+async def add_command(message: Message, state: FSMContext) -> None:
     """/add command handler. Start add_states machine"""
     await state.set_state(FSM_Admin.add_name)
     await message.reply('Введите название')
 
-async def add_name(message: Message, state: FSMContext):
+async def add_name(message: Message, state: FSMContext) -> None:
     await state.update_data(name=message.text)
     await state.set_state(FSM_Admin.add_photo)
     await message.reply('Теперь отправьте фото')   
 
-async def add_photo(message: Message, state: FSMContext):
+async def add_photo(message: Message, state: FSMContext) -> None:
     file_path = (await bot.get_file(message.photo[-1].file_id)).file_path
     mkdir(f"photos/{(await state.get_data())['name']}")
     await bot.download_file(file_path, f"photos/{(await state.get_data())['name']}/0.jpg")
     await state.set_state(FSM_Admin.add_description)
     await message.reply('Теперь введите описание')
 
-async def add_description(message: Message, state: FSMContext):
+async def add_description(message: Message, state: FSMContext) -> None:
     await state.update_data(description=message.text)
     await state.set_state(FSM_Admin.add_price)
-    await message.reply('Теперь введите цену(через точку, в слуае цены с копейками, например: 499.99)')
+    await message.reply('Теперь введите цену')
 
-async def add_price(message: Message, state: FSMContext):
+async def add_price(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
-    if float(message.text) == float(message.text)//1:
-        data['price'] = int(float(message.text))
-    else:
-        data['price'] = float(message.text)
+    data['price'] = message.text
     await sql_add_command(data)
     await message.reply('Готовый результат:')
     await message.answer_photo(FSInputFile(f"photos/{data['name']}/0.jpg"), \
-        caption=f"Имя: {data['name']}\nОписание: {data['description']}\nЦена: {data['price']}₽")
+        caption=f"Имя: {data['name']}\nОписание: {data['description']}\nЦена: {data['price']}")
     await state.clear()
 
 
 # Compliting changes block
-async def change_complite_text(message: Message, state: FSMContext):
+async def change_complite_text(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     await sql_change_command(data['name'], data['item'], message.text)
+    if data['item'] == 'name':
+        rename(f"photos/{data['name']}", f"photos/{message.text}")
     await message.reply('Готово')
     await state.clear()
 
-async def change_complite_photo(message: Message, state: FSMContext):
+async def change_complite_photo(message: Message, state: FSMContext) -> None:
     file_path = (await bot.get_file(message.photo[-1].file_id)).file_path
     name = (await state.get_data())['name']
     num = (await get_num(name))[0][0]
@@ -167,7 +155,7 @@ async def change_complite_photo(message: Message, state: FSMContext):
 
 
 # Add more additional photos compliter
-async def add_more_photos(message: Message, state: FSMContext):
+async def add_more_photos(message: Message, state: FSMContext) -> None:
     file_path = (await bot.get_file(message.photo[-1].file_id)).file_path
     name = (await state.get_data())['name']
     num = (await get_num(name))[0][0]
@@ -178,20 +166,19 @@ async def add_more_photos(message: Message, state: FSMContext):
 
 
 
-async def cancel_command(message: Message, state: FSMContext):
+async def cancel_command(message: Message, state: FSMContext) -> None:
     """/cancel command handler. Cancel any state compliting"""
     if await state.get_state():
         await state.clear()
         await message.reply('OK')
 
 
-def register_handlers_admin(dp: Dispatcher):
+def register_handlers_admin(dp: Dispatcher) -> None:
     """All admin's handlers register. Any admin's command besides /admin starts with AdminFilter which is\
         checking user to be in admins list"""
     dp.message.register(cancel_command, Command(commands='cancel'))
 
     dp.message.register(admin_command, Command(commands='admin'))
-    dp.message.register(password_handler, FSM_Admin.password_check)
 
     dp.callback_query.register(admin_inlines, AdminFilter())
     dp.message.register(check_pricelist_command, Command(commands='check_pricelist'), AdminFilter())
