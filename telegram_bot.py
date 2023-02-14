@@ -6,9 +6,8 @@ from sqlite_db import sql_start
 
 
 async def start():
-    #await bot.send_message(1189892244, 'Запустилось')
     print('Бот запущен')
-    await sql_start()
+    sql_start()
     await bot.delete_webhook(drop_pending_updates=True)
     
 async def main():

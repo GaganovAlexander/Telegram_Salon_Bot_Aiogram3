@@ -14,4 +14,4 @@ class AdminFilter(Filter):
     
 class ClientInline(Filter):
     async def __call__(self, call: CallbackQuery):
-        return 'photos' in call.data or 'pricelist' in call.data or 'book' in call.data
+        return 'photos' in call.data or '0pricelist' in call.data or 'book' in call.data

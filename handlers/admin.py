@@ -9,8 +9,8 @@ from aiogram.filters import Command
 
 from create_bot import bot
 from sqlite_db import sql_add_command, sql_change_command,\
-    sql_delete_command, sql_admin_pricelist_command, increase_num, get_num
-from keys import admin_items_inlines, admin_photo_inlines
+    sql_delete_command, get_item, increase_num, get_num, get_all_names
+from keys import admin_items_inlines, admin_photo_inlines, pricelist_inlines
 from commands import set_admin_commands
 from filters import AdminFilter
 
@@ -27,6 +27,8 @@ class FSM_Admin(StatesGroup):
 
     add_more_photos = State()
 
+    master_name = State()
+
 
 async def admin_command(message: Message, state: FSMContext) -> None:
     """/admin command handler. If user already in admins list - do nothing, else answer him to enter password"""
@@ -42,14 +44,14 @@ async def admin_inlines(call: CallbackQuery, state: FSMContext) -> None:
     data = call.data.split('_')
     match data[0]:
         case 'delete':
-            await sql_delete_command(data[1])
+            sql_delete_command(data[1])
             rmtree(f"photos/{data[1]}")
             await call.message.answer('Готово')
         case 'change':
             match data[1]:
                 case 'photo':
                     media = []
-                    num = (await get_num(data[2]))[0][0]
+                    num = get_num(data[2])[0][0]
                     for i in range(num):
                         media.append(InputMediaPhoto(media=FSInputFile(f'photos/{data[2]}/{i}.jpg')))
                     await call.message.answer_media_group(media)
@@ -81,26 +83,52 @@ async def admin_inlines(call: CallbackQuery, state: FSMContext) -> None:
             await call.message.answer('Отправьте новое фото')
         case 'deletephoto':
             media = []
-            num = (await get_num(data[1]))[0][0]
+            num = get_num(data[1])[0][0]
             for i in range(1, num):
                 media.append(InputMediaPhoto(media=FSInputFile(f'photos/{data[1]}/{i}.jpg')))
             await call.message.answer_media_group(media)
             await call.message.answer('Выберите фото из списка', reply_markup=admin_photo_inlines(num-1, data[1], 'choice'))
         case 'choice':
             remove(f"photos/{data[2]}/{data[1]}.jpg")
-            await increase_num(data[2], -1)
+            increase_num(data[2], -1)
             await call.message.answer('Готово')
+                
+        case '1pricelist':
+            match data[1]:
+                case 'nextpage':
+                    names = list(map(lambda x: x[0], get_all_names()))
+                    last_item_num = int(data[2])
+                    if last_item_num + 6 < len(names):
+                        last_num = last_item_num + 6
+                        last_page = False
+                    else:
+                        last_num = last_item_num + len(names) % 6
+                        last_page = True
+                    await call.message.edit_reply_markup(reply_markup=pricelist_inlines(names[last_item_num:last_num],\
+                        last_num, last_page=last_page, is_admin=True))
+                case 'prevpage':
+                    names = list(map(lambda x: x[0], get_all_names()))
+                    last_item_num = int(data[2])
+                    first_page = last_item_num // 6 == 1
+                    await call.message.edit_reply_markup(reply_markup=pricelist_inlines(names[6*(last_item_num//6 - 1):last_item_num//6 * 6],\
+                        last_item_num//6 * 6, first_page, is_admin=True))
+                case 'choice':
+                    item = get_item(data[2])[0]
+                    await call.message.answer_photo(FSInputFile(f'photos/{item[0]}/0.jpg'),\
+                        caption=f'Название: {item[0]}\nОписание: {item[1]}\nЦена: {item[2]}', reply_markup=admin_items_inlines(item[0]))
             
     await call.answer()
 
 
-# Main admin's command - pricelist management
 async def check_pricelist_command(message: Message) -> None:
-    """/check_pricelist command handler. Do the same as /pricelist command, but with admin's inline keys"""
-    for i in await sql_admin_pricelist_command():
-        await message.answer_photo(FSInputFile(f'photos/{i[0]}/0.jpg'), caption=f'Название: {i[0]}\nОписание: {i[1]}\nЦена: {i[2]}',\
-                reply_markup=admin_items_inlines(i[0]))
-
+    names = list(map(lambda x: x[0], get_all_names()))
+    if len(names) > 6:
+        last_num = 6
+        first_page = True
+    else:
+        last_num = len(names) % 6
+        first_page = False
+    await message.answer('Прайс-лист:', reply_markup=pricelist_inlines(names[:last_num], last_num, first_page, is_admin=True)) 
 
 # Add states block
 async def add_command(message: Message, state: FSMContext) -> None:
@@ -128,7 +156,7 @@ async def add_description(message: Message, state: FSMContext) -> None:
 async def add_price(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     data['price'] = message.text
-    await sql_add_command(data)
+    sql_add_command(data)
     await message.reply('Готовый результат:')
     await message.answer_photo(FSInputFile(f"photos/{data['name']}/0.jpg"), \
         caption=f"Имя: {data['name']}\nОписание: {data['description']}\nЦена: {data['price']}")
@@ -138,7 +166,7 @@ async def add_price(message: Message, state: FSMContext) -> None:
 # Compliting changes block
 async def change_complite_text(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
-    await sql_change_command(data['name'], data['item'], message.text)
+    sql_change_command(data['name'], data['item'], message.text)
     if data['item'] == 'name':
         rename(f"photos/{data['name']}", f"photos/{message.text}")
     await message.reply('Готово')
@@ -147,8 +175,8 @@ async def change_complite_text(message: Message, state: FSMContext) -> None:
 async def change_complite_photo(message: Message, state: FSMContext) -> None:
     file_path = (await bot.get_file(message.photo[-1].file_id)).file_path
     name = (await state.get_data())['name']
-    num = (await get_num(name))[0][0]
-    await increase_num(name, 1)
+    num = get_num(name)[0][0]
+    increase_num(name, 1)
     rename(f"photos/{name}/0.jpg", f"photos/{name}/{num}.jpg")
     await bot.download_file(file_path, f"photos/{name}/0.jpg")
     await state.clear()
@@ -158,8 +186,8 @@ async def change_complite_photo(message: Message, state: FSMContext) -> None:
 async def add_more_photos(message: Message, state: FSMContext) -> None:
     file_path = (await bot.get_file(message.photo[-1].file_id)).file_path
     name = (await state.get_data())['name']
-    num = (await get_num(name))[0][0]
-    await increase_num(name, 1)
+    num = get_num(name)[0][0]
+    increase_num(name, 1)
     await bot.download_file(file_path, f"photos/{name}/{num}.jpg")
     await state.clear()
     await message.answer('Готово')
