@@ -75,11 +75,11 @@ def pricelist_inlines(list_of_items_names: list[str], last_item_num=0, first_pag
     return kb.as_markup()    
     
 
-def client_items_inlines(name: str):
+def client_items_inlines(name: str, is_unusual=False):
     kb = InlineKeyboardBuilder()
 
     kb.button(text='Больше фото', callback_data=f'photos_{name}')
-    kb.button(text='Записаться', callback_data=f'book_{name}')
+    kb.button(text='Записаться', callback_data=f'book_{name}_{int(is_unusual)}')
 
     kb.adjust(1, 1)
     return kb.as_markup()

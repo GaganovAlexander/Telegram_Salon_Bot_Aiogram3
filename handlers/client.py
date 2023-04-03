@@ -32,8 +32,11 @@ async def client_inlines(call: CallbackQuery) -> None:
     data = call.data.split('_')
     match data[0]:
         case 'book':
-            await call.message.answer(\
-            f'Для записи на услугу "{data[1]}", свяжитесь с {getenv("CONTACT1_FIO")} и уточните детали:\nНомер телефона: {getenv("CONTACT1_PHONE_NUMBER")}\nТелеграм: https://t.me/{getenv("CONTACT1_USERNAME")}')
+            if data[2] != '1':
+                await call.message.answer(\
+                f'Для записи на услугу "{data[1]}", свяжитесь с {getenv("CONTACT1_FIO")} и уточните детали:\nНомер телефона: {getenv("CONTACT1_PHONE_NUMBER")}\nСоцсети: {getenv("CONTACT1_USERNAME")}')
+            else:
+                await call.message.answer(f"Контакты Ш.")
         case 'photos':
             media = []
             num = get_num(data[1])[0][0]

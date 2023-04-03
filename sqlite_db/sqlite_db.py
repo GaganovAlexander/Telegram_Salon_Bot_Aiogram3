@@ -8,7 +8,7 @@ def sql_start() -> None:
     cur = base.cursor()
     if base:
         print('Подключение к базе данных прошло успешно')
-        base.execute('CREATE TABLE IF NOT EXISTS pricelist(name TEXT PRIMARY KEY, description TEXT, price TEXT, num INTEGER)')
+        base.execute('CREATE TABLE IF NOT EXISTS pricelist(name TEXT PRIMARY KEY, description TEXT, price TEXT, num INTEGER, is_shugaring INTEGER DEFAULT 0)')
         base.commit()
     else:
         print('Произошла какая-то ошибка')
